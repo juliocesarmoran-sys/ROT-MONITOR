@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>AIS ROT Monitor</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #04080f;
+  --bg2: #080e1a;
+  --bg3: #0d1525;
+  --border: #1a2a3a;
+  --accent: #00c8ff;
+  --port: #00e5a0;
+  --stbd: #ff6b35;
+  --warn: #ffd166;
+  --text: #c8dff0;
+  --muted: #4a6580;
+  --mono: 'Share Tech Mono', monospace;
+  --sans: 'Barlow', sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+/* Header */
+.header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.header-title {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--accent);
+  letter-spacing: 0.15em;
+}
+.conn-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--muted);
+  transition: background 0.3s;
+}
+.conn-dot.live { background: var(--port); box-shadow: 0 0 8px var(--port); }
+.conn-dot.searching { background: var(--warn); animation: pulse 1s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* Search */
+.search-bar {
+  padding: 12px 16px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+}
+.search-bar input {
+  flex: 1;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 14px;
+  padding: 10px 12px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.search-bar input:focus { border-color: var(--accent); }
+.search-bar input::placeholder { color: var(--muted); }
+.search-bar button {
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  border-radius: 6px;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 16px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* Main */
+.main { flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+
+/* ROT gauge */
+.rot-panel {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.rot-panel canvas { width: 100%; max-width: 340px; height: auto; }
+.rot-big {
+  font-family: var(--mono);
+  font-size: 48px;
+  font-weight: 400;
+  letter-spacing: -1px;
+  color: #fff;
+  transition: color 0.3s;
+}
+.rot-unit { font-size: 14px; color: var(--muted); font-family: var(--mono); }
+.rot-dir {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  padding: 4px 14px;
+  border-radius: 20px;
+  background: var(--bg3);
+  color: var(--muted);
+  transition: all 0.3s;
+}
+.rot-dir.port { background: #00e5a015; color: var(--port); border: 1px solid var(--port)44; }
+.rot-dir.stbd { background: #ff6b3515; color: var(--stbd); border: 1px solid var(--stbd)44; }
+
+/* Stats grid */
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.stat {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.stat-label { font-size: 10px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 5px; }
+.stat-val { font-family: var(--mono); font-size: 20px; color: var(--text); }
+.stat-val.accent { color: var(--accent); }
+
+/* Ship info */
+.ship-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+}
+.ship-name {
+  font-family: var(--mono);
+  font-size: 16px;
+  color: var(--accent);
+  margin-bottom: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ship-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.ship-row:last-child { border-bottom: none; }
+.ship-row span:first-child { color: var(--muted); }
+.ship-row span:last-child { font-family: var(--mono); color: var(--text); }
+
+/* History graph */
+.graph-panel {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.graph-label { font-size: 10px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
+#graph { width: 100%; height: 70px; border-radius: 6px; }
+
+/* Status messages */
+.status-msg {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+.status-msg .big { font-family: var(--mono); font-size: 32px; color: var(--border); display: block; margin-bottom: 8px; }
+
+/* Log */
+.log-panel {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  max-height: 100px;
+  overflow-y: auto;
+}
+.log-entry { font-family: var(--mono); font-size: 11px; color: var(--muted); padding: 2px 0; }
+.log-entry.ok { color: var(--port); }
+.log-entry.err { color: var(--stbd); }
+.log-entry.info { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <span class="header-title">◈ AIS ROT MONITOR</span>
+  <div class="conn-dot" id="conn-dot"></div>
+</div>
+
+<div class="search-bar">
+  <input type="text" id="search-input" placeholder="Nombre buque o MMSI..." autocomplete="off" autocorrect="off" spellcheck="false">
+  <button onclick="doSearch()">BUSCAR</button>
+</div>
+
+<div class="main" id="main">
+  <div class="status-msg">
+    <span class="big">⚓</span>
+    Busca un buque por nombre o MMSI.<br>Se conectará al feed AIS en tiempo real.
+  </div>
+  <div class="log-panel" id="log"></div>
+</div>
+
+<script>
+const API_KEY = '13f4047ffafc1bb72781e8e0fba281be8f0d418a';
+let ws = null;
+let currentMMSI = null;
+let shipData = {};
+let rotHistory = [];
+let maxROT = 0, sumROT = 0, nROT = 0;
+const HIST_LEN = 60;
+
+function log(msg, type='') {
+  const el = document.getElementById('log');
+  const d = document.createElement('div');
+  d.className = 'log-entry ' + type;
+  const t = new Date().toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  d.textContent = `[${t}] ${msg}`;
+  el.appendChild(d);
+  el.scrollTop = el.scrollHeight;
+  while (el.children.length > 20) el.removeChild(el.firstChild);
+}
+
+function setDot(state) {
+  const d = document.getElementById('conn-dot');
+  d.className = 'conn-dot ' + (state || '');
+}
+
+function doSearch() {
+  const q = document.getElementById('search-input').value.trim();
+  if (!q) return;
+  if (ws) { ws.close(); ws = null; }
+  currentMMSI = null;
+  maxROT = 0; sumROT = 0; nROT = 0; rotHistory = []; shipData = {};
+
+  const isMMSI = /^\d{9}$/.test(q);
+  if (isMMSI) {
+    currentMMSI = q;
+    connectWS([q]);
+  } else {
+    searchByName(q);
+  }
+}
+
+document.getElementById('search-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doSearch();
+});
+
+async function searchByName(name) {
+  log(`Buscando "${name}"...`, 'info');
+  setDot('searching');
+  showSearching(name);
+  try {
+    const r = await fetch(`https://api.aisstream.io/v0/vessel-search?query=${encodeURIComponent(name)}&limit=5`, {
+      headers: { 'Authorization': API_KEY }
+    });
+    const data = await r.json();
+    if (data && data.vessels && data.vessels.length > 0) {
+      const v = data.vessels[0];
+      currentMMSI = String(v.mmsi || v.MMSI);
+      shipData.name = v.name || v.Name || name.toUpperCase();
+      log(`Encontrado: ${shipData.name} (MMSI: ${currentMMSI})`, 'ok');
+      connectWS([currentMMSI]);
+    } else {
+      log('No encontrado. Prueba con el MMSI directamente.', 'err');
+      setDot('');
+      showNotFound(name);
+    }
+  } catch(e) {
+    log('Error en búsqueda: ' + e.message, 'err');
+    setDot('');
+  }
+}
+
+function connectWS(mmsiList) {
+  log(`Conectando WebSocket AIS...`, 'info');
+  setDot('searching');
+  ws = new WebSocket('wss://stream.aisstream.io/v0/stream');
+
+  ws.onopen = () => {
+    log('WebSocket conectado', 'ok');
+    const sub = {
+      APIKey: API_KEY,
+      FilterMessageTypes: ['PositionReport'],
+      FilterMMSI: mmsiList.map(String)
+    };
+    ws.send(JSON.stringify(sub));
+    log(`Suscrito a MMSI: ${mmsiList.join(', ')}`, 'info');
+    setDot('live');
+  };
+
+  ws.onmessage = (evt) => {
+    try {
+      const msg = JSON.parse(evt.data);
+      handleAISMessage(msg);
+    } catch(e) {}
+  };
+
+  ws.onerror = (e) => { log('Error WebSocket', 'err'); setDot(''); };
+  ws.onclose = () => { log('WebSocket cerrado', 'err'); setDot(''); };
+}
+
+function handleAISMessage(msg) {
+  const pr = msg.Message?.PositionReport;
+  const meta = msg.MetaData;
+  if (!pr) return;
+
+  const mmsi = String(meta?.MMSI || '');
+  if (currentMMSI && mmsi !== currentMMSI) return;
+
+  shipData.name = shipData.name || meta?.ShipName?.trim() || mmsi;
+  shipData.mmsi = mmsi;
+  shipData.lat = pr.Latitude?.toFixed(5);
+  shipData.lon = pr.Longitude?.toFixed(5);
+  shipData.sog = pr.Sog?.toFixed(1);
+  shipData.cog = pr.Cog?.toFixed(1);
+  shipData.hdg = pr.TrueHeading !== 511 ? pr.TrueHeading : '—';
+  shipData.navStatus = pr.NavigationalStatus ?? '—';
+
+  // Decode ROT
+  // AIS ROT: raw value -128..127
+  // -128 = no sensor, 0 = sin giro
+  // ±1..±126: ROT_indicator = ±4.733 * sqrt(|ROT_deg/min|)
+  // Inverse: ROT_deg/min = (raw/4.733)^2 * sign(raw)
+  let rotRaw = pr.RateOfTurn;
+  let rotDegMin = null;
+  if (rotRaw !== undefined && rotRaw !== null && rotRaw !== -128) {
+    if (rotRaw === 0) {
+      rotDegMin = 0;
+    } else {
+      const sign = rotRaw > 0 ? 1 : -1;
+      const ind = Math.abs(rotRaw);
+      if (ind <= 126) {
+        rotDegMin = sign * Math.pow(ind / 4.733, 2);
+      } else {
+        rotDegMin = sign * 720; // >5°/30s
+      }
+    }
+  }
+  shipData.rotRaw = rotRaw;
+  shipData.rotDegMin = rotDegMin;
+
+  if (rotDegMin !== null) {
+    const absROT = Math.abs(rotDegMin);
+    if (absROT > maxROT) maxROT = absROT;
+    sumROT += absROT; nROT++;
+    rotHistory.push(rotDegMin);
+    if (rotHistory.length > HIST_LEN) rotHistory.shift();
+  }
+
+  log(`ROT=${rotDegMin !== null ? rotDegMin.toFixed(1)+'°/min' : 'N/A'} SOG=${shipData.sog}kn COG=${shipData.cog}°`, 'ok');
+  renderDashboard();
+}
+
+function renderDashboard() {
+  const rot = shipData.rotDegMin;
+  const absROT = rot !== null ? Math.abs(rot) : 0;
+  const rotStr = rot !== null ? absROT.toFixed(1) : '—';
+
+  let dirClass = '', dirText = 'SIN GIRO';
+  let rotColor = 'var(--text)';
+  if (rot !== null && Math.abs(rot) >= 1) {
+    if (rot > 0) { dirClass = 'port'; dirText = '← BABOR'; rotColor = 'var(--port)'; }
+    else { dirClass = 'stbd'; dirText = 'ESTRIBOR →'; rotColor = 'var(--stbd)'; }
+  }
+
+  const navLabels = {
+    0:'Bajo motor',1:'En fondeo',2:'Sin gobierno',3:'Man. restringida',
+    4:'Restringida calado',5:'Amarrado',6:'Varado',7:'Pesca',8:'A vela',15:'No definido'
+  };
+
+  document.getElementById('main').innerHTML = `
+    <div class="rot-panel">
+      <canvas id="gauge-c" width="600" height="320"></canvas>
+      <div class="rot-big" style="color:${rotColor}">${rotStr}</div>
+      <div class="rot-unit">grados / minuto</div>
+      <div class="rot-dir ${dirClass}">${dirText}</div>
+    </div>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-label">SOG</div>
+        <div class="stat-val accent">${shipData.sog ?? '—'} kn</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">COG</div>
+        <div class="stat-val">${shipData.cog ?? '—'}°</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Popa verdadera</div>
+        <div class="stat-val">${shipData.hdg}°</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Estado nav.</div>
+        <div class="stat-val" style="font-size:13px">${navLabels[shipData.navStatus] ?? shipData.navStatus}</div>
+      </div>
+    </div>
+
+    <div class="ship-card">
+      <div class="ship-name">${shipData.name || '—'}</div>
+      <div class="ship-row"><span>MMSI</span><span>${shipData.mmsi || '—'}</span></div>
+      <div class="ship-row"><span>Posición</span><span>${shipData.lat ?? '—'} / ${shipData.lon ?? '—'}</span></div>
+      <div class="ship-row"><span>ROT raw AIS</span><span>${shipData.rotRaw ?? '—'}</span></div>
+      <div class="ship-row"><span>ROT máximo</span><span>${maxROT.toFixed(1)} °/min</span></div>
+      <div class="ship-row"><span>ROT promedio</span><span>${nROT > 0 ? (sumROT/nROT).toFixed(1) : '—'} °/min</span></div>
+    </div>
+
+    <div class="graph-panel">
+      <div class="graph-label">Historial ROT</div>
+      <canvas id="graph" width="600" height="140"></canvas>
+    </div>
+
+    <div class="log-panel" id="log"></div>
+  `;
+
+  drawGauge(rot ?? 0, rotColor);
+  drawGraph();
+}
+
+function drawGauge(rot, needleColor) {
+  const canvas = document.getElementById('gauge-c');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+  const cx = W / 2, cy = H * 0.92;
+  const R = H * 0.82;
+  const MAX_DEG = 720;
+
+  // Background arc
+  ctx.beginPath();
+  ctx.arc(cx, cy, R, Math.PI, 2 * Math.PI);
+  ctx.strokeStyle = '#0d1525';
+  ctx.lineWidth = 28;
+  ctx.stroke();
+
+  // Zone colors
+  const zones = [
+    {from:-720,to:-180,color:'#ff6b3530'},{from:-180,to:-30,color:'#ff6b3518'},
+    {from:-30,to:30,color:'#00e5a015'},
+    {from:30,to:180,color:'#00c8ff18'},{from:180,to:720,color:'#00c8ff30'},
+  ];
+  zones.forEach(z => {
+    const a1 = Math.PI + ((z.from+MAX_DEG)/(2*MAX_DEG))*Math.PI;
+    const a2 = Math.PI + ((z.to+MAX_DEG)/(2*MAX_DEG))*Math.PI;
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, a1, a2);
+    ctx.strokeStyle = z.color;
+    ctx.lineWidth = 28;
+    ctx.stroke();
+  });
+
+  // Ticks
+  [[-720,true],[-360,true],[-180,true],[-90,false],[-30,false],[0,true],[30,false],[90,false],[180,true],[360,true],[720,true]].forEach(([v,major]) => {
+    const frac = (v+MAX_DEG)/(2*MAX_DEG);
+    const angle = Math.PI + frac*Math.PI;
+    ctx.beginPath();
+    ctx.moveTo(cx+Math.cos(angle)*(R-(major?30:18)), cy+Math.sin(angle)*(R-(major?30:18)));
+    ctx.lineTo(cx+Math.cos(angle)*(R+5), cy+Math.sin(angle)*(R+5));
+    ctx.strokeStyle = major ? '#334' : '#1e2a3a';
+    ctx.lineWidth = major ? 2.5 : 1;
+    ctx.stroke();
+    if (major) {
+      const tr = R-50;
+      ctx.fillStyle = '#4a6580';
+      ctx.font = `22px 'Share Tech Mono', monospace`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(Math.abs(v), cx+Math.cos(angle)*tr, cy+Math.sin(angle)*tr);
+    }
+  });
+
+  // Needle
+  const clamped = Math.max(-MAX_DEG, Math.min(MAX_DEG, rot));
+  const frac = (clamped+MAX_DEG)/(2*MAX_DEG);
+  const nAngle = Math.PI + frac*Math.PI;
+  ctx.save();
+  ctx.shadowColor = needleColor;
+  ctx.shadowBlur = 16;
+  ctx.beginPath();
+  ctx.moveTo(cx+Math.cos(nAngle)*(R-24), cy+Math.sin(nAngle)*(R-24));
+  ctx.lineTo(cx-Math.cos(nAngle)*30, cy-Math.sin(nAngle)*30);
+  ctx.strokeStyle = needleColor;
+  ctx.lineWidth = 5; ctx.lineCap = 'round';
+  ctx.stroke();
+  ctx.restore();
+
+  // Center
+  ctx.beginPath(); ctx.arc(cx, cy, 14, 0, 2*Math.PI);
+  ctx.fillStyle = '#1a2a3a'; ctx.fill();
+  ctx.strokeStyle = '#334'; ctx.lineWidth = 2; ctx.stroke();
+
+  // Labels
+  ctx.fillStyle = '#ff6b3566'; ctx.font = "20px 'Barlow', sans-serif";
+  ctx.textAlign = 'left'; ctx.fillText('BR', cx-R+10, cy-20);
+  ctx.fillStyle = '#00c8ff66'; ctx.textAlign = 'right';
+  ctx.fillText('ER', cx+R-10, cy-20);
+}
+
+function drawGraph() {
+  const canvas = document.getElementById('graph');
+  if (!canvas || rotHistory.length < 2) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+  const cy = H/2;
+  const maxVal = Math.max(30, ...rotHistory.map(Math.abs));
+
+  // Zero line
+  ctx.beginPath(); ctx.moveTo(0,cy); ctx.lineTo(W,cy);
+  ctx.strokeStyle = '#1a2a3a'; ctx.lineWidth = 1;
+  ctx.setLineDash([4,4]); ctx.stroke(); ctx.setLineDash([]);
+
+  // Line
+  ctx.beginPath();
+  rotHistory.forEach((v,i) => {
+    const x = (i/(HIST_LEN-1))*W;
+    const y = cy - (v/maxVal)*(H*0.44);
+    i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  });
+  const last = rotHistory[rotHistory.length-1];
+  const lc = last > 1 ? 'var(--port)' : last < -1 ? 'var(--stbd)' : '#00e5a0';
+  ctx.strokeStyle = lc; ctx.lineWidth = 2; ctx.stroke();
+}
+
+function showSearching(name) {
+  document.getElementById('main').innerHTML = `
+    <div class="status-msg">
+      <span class="big">⟳</span>
+      Buscando <b>${name}</b> en el feed AIS...
+    </div>
+    <div class="log-panel" id="log"></div>
+  `;
+}
+function showNotFound(name) {
+  document.getElementById('main').innerHTML = `
+    <div class="status-msg">
+      <span class="big">✗</span>
+      Buque "<b>${name}</b>" no encontrado.<br>
+      Prueba con el MMSI de 9 dígitos.
+    </div>
+    <div class="log-panel" id="log"></div>
+  `;
+}
+</script>
+</body>
+</html>
